@@ -96,10 +96,12 @@ class SharedLLM:
         candidate_models = [clean_model]
         fallbacks = [
             "gemini-flash-lite-latest",
+            "gemini-2.5-flash-lite",
+            "gemini-flash-latest",
             "gemini-3.5-flash-lite",
             "gemini-3.1-flash-lite",
             "gemini-3.5-flash",
-            "gemini-2.5-flash",
+            "gemini-pro-latest",
         ]
         for fb in fallbacks:
             if fb not in candidate_models:
@@ -126,7 +128,7 @@ class SharedLLM:
             }
 
             try:
-                with httpx.Client(timeout=15.0) as client:
+                with httpx.Client(timeout=30.0) as client:
                     resp = client.post(url, json=payload)
                     if resp.status_code == 200:
                         data = resp.json()
@@ -145,10 +147,10 @@ class SharedLLM:
             except Exception as e:
                 logger.warning(f"[SharedLLM] Model '{current_model}' request error: {e}")
                 last_error = e
-                # Fail fast if there is no internet connection or host resolution fails
+                # Only stop if host resolution or overall network connectivity fails
                 err_str = str(e).lower()
-                if "connect" in err_str or "nodename" in err_str or "servname" in err_str or "timed out" in err_str:
-                    logger.warning("[SharedLLM] Network unreachable or timed out; stopping model cascade.")
+                if "nodename" in err_str or "servname" in err_str:
+                    logger.warning("[SharedLLM] DNS unreachable; stopping model cascade.")
                     break
 
         logger.error(f"[SharedLLM] All Gemini candidate models failed. Last error: {last_error}")

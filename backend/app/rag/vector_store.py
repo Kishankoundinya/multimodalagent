@@ -38,19 +38,29 @@ def get_vector_store() -> Chroma:
         logger.info(f"Initialized Chroma vector store collection '{COLLECTION_NAME}'")
     return _vector_store
 
-def add_documents_to_chroma(documents: List[Document]) -> int:
+def add_documents_to_chroma(documents: List[Document], batch_size: int = 20) -> int:
     """
-    Store LangChain documents into ChromaDB with metadata.
+    Store LangChain documents into ChromaDB with metadata in small batches
+    to prevent memory spikes on low-RAM containers (<512MB).
     """
     if not documents:
         return 0
+    import gc
     store = get_vector_store()
     
+    total = len(documents)
     # IDs can be taken from chunk_id metadata for idempotent upserts
     ids = [doc.metadata.get("chunk_id") for doc in documents]
-    store.add_documents(documents=documents, ids=ids)
-    logger.info(f"Added {len(documents)} document chunks to ChromaDB.")
-    return len(documents)
+
+    for i in range(0, total, batch_size):
+        chunk_docs = documents[i:i + batch_size]
+        chunk_ids = ids[i:i + batch_size]
+        store.add_documents(documents=chunk_docs, ids=chunk_ids)
+        gc.collect()
+        logger.info(f"ChromaDB progress: indexed {min(i + batch_size, total)}/{total} chunks.")
+
+    logger.info(f"Successfully added all {total} document chunks to ChromaDB.")
+    return total
 
 def search_similar_chunks(
     query: str,

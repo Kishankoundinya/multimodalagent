@@ -36,13 +36,20 @@ class DirectSTEmbeddings(Embeddings):
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         if not texts:
             return []
-        try:
-            import torch
-            with torch.inference_mode():
-                embeddings = self.model.encode(texts, batch_size=32, normalize_embeddings=True, show_progress_bar=False)
-        except Exception:
-            embeddings = self.model.encode(texts, batch_size=32, normalize_embeddings=True, show_progress_bar=False)
-        return embeddings.tolist()
+        import gc
+        all_embeddings: List[List[float]] = []
+        batch_size = 16
+        for i in range(0, len(texts), batch_size):
+            chunk = texts[i:i + batch_size]
+            try:
+                import torch
+                with torch.inference_mode():
+                    embs = self.model.encode(chunk, batch_size=batch_size, normalize_embeddings=True, show_progress_bar=False)
+            except Exception:
+                embs = self.model.encode(chunk, batch_size=batch_size, normalize_embeddings=True, show_progress_bar=False)
+            all_embeddings.extend(embs.tolist())
+            gc.collect()
+        return all_embeddings
 
     def embed_query(self, text: str) -> List[float]:
         if text in self._query_cache:

@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: financial-research-ai
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: LLM_MODEL
+        value: gemini-flash-lite-latest
+      - key: DEVICE
+        value: cpu
+      - key: TEMPERATURE
+        value: "0.2"
+      - key: MAX_NEW_TOKENS
+        value: "1024"
+      - key: MAX_REPORT_TOKENS
+        value: "2048"

@@ -82,22 +82,31 @@ def process_pdf_document(document_id: str) -> Dict[str, Any]:
             chunk_overlap=settings.CHUNK_OVERLAP,
         )
 
+        # Free raw pages from memory
+        del pages
+        import gc
+        gc.collect()
+
         if not chunks:
             raise ValueError("No valid text chunks could be created from document.")
 
+        chunk_count = len(chunks)
+
         # Stage 3: Embedding
-        update_document_status(document_id, status="Embedding", num_chunks=len(chunks))
+        update_document_status(document_id, status="Embedding", num_chunks=chunk_count)
 
         # Stage 4: Indexing in ChromaDB
         update_document_status(document_id, status="Indexing")
         add_documents_to_chroma(chunks)
+        del chunks
+        gc.collect()
 
         # Stage 5: Completed
         update_document_status(
             document_id,
             status="Completed",
             num_pages=num_pages,
-            num_chunks=len(chunks)
+            num_chunks=chunk_count
         )
         logger.info(f"Document {document_id} processing completed successfully.")
         return get_document_by_id(document_id)

@@ -59,17 +59,13 @@ def index_seed_document(req: SeedIndexRequest, background_tasks: BackgroundTasks
     }
     insert_document(doc_data)
 
-    # Process immediately or via background task
-    try:
-        updated = process_pdf_document(doc_id)
-        return updated
-    except Exception as e:
-        logger.error(f"Error indexing seed document: {e}")
-        doc = get_document_by_id(doc_id)
-        return doc
+    # Process in background task
+    background_tasks.add_task(process_pdf_document, doc_id)
+    return get_document_by_id(doc_id)
 
 @router.post("/upload", response_model=DocumentUploadResponse)
 async def upload_document(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     company: str = Form(...),
     fiscal_year: str = Form(...),
@@ -107,18 +103,12 @@ async def upload_document(
     insert_document(doc_data)
 
     if auto_process:
-        try:
-            doc_record = process_pdf_document(doc_id)
-            return DocumentUploadResponse(
-                document=doc_record,
-                message="Document uploaded and processed successfully."
-            )
-        except Exception as e:
-            doc_record = get_document_by_id(doc_id)
-            return DocumentUploadResponse(
-                document=doc_record,
-                message=f"Document uploaded but processing failed: {e}"
-            )
+        background_tasks.add_task(process_pdf_document, doc_id)
+        doc_record = get_document_by_id(doc_id)
+        return DocumentUploadResponse(
+            document=doc_record,
+            message="Document uploaded successfully. Processing pipeline scheduled."
+        )
 
     doc_record = get_document_by_id(doc_id)
     return DocumentUploadResponse(
@@ -135,17 +125,14 @@ def get_document(doc_id: str):
     return doc
 
 @router.post("/{doc_id}/process", response_model=DocumentResponse)
-def trigger_process_document(doc_id: str):
+def trigger_process_document(doc_id: str, background_tasks: BackgroundTasks):
     """Trigger or re-trigger processing for an uploaded document."""
     doc = get_document_by_id(doc_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found.")
 
-    try:
-        updated = process_pdf_document(doc_id)
-        return updated
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    background_tasks.add_task(process_pdf_document, doc_id)
+    return doc
 
 @router.delete("/{doc_id}")
 def delete_doc(doc_id: str):
