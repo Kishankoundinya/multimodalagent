@@ -1,0 +1,20 @@
+services:
+  financial-research-ai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: financial_research_ai
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - LLM_MODEL=${LLM_MODEL:-gemini-flash-lite-latest}
+      - DEVICE=cpu
+      - TOP_K=15
+      - TEMPERATURE=0.2
+      - MAX_NEW_TOKENS=1024
+      - MAX_REPORT_TOKENS=2048
+    volumes:
+      # Persistent storage for uploaded PDFs, ChromaDB embeddings, SQLite DB, and reports
+      - ./data:/app/data
