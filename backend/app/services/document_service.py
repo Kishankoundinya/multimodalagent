@@ -104,7 +104,7 @@ def process_pdf_document(document_id: str) -> Dict[str, Any]:
             del batch_pages
 
             if batch_chunks:
-                add_documents_to_chroma(batch_chunks, batch_size=10)
+                add_documents_to_chroma(batch_chunks, batch_size=50)
                 total_chunks += len(batch_chunks)
                 del batch_chunks
 
@@ -116,6 +116,10 @@ def process_pdf_document(document_id: str) -> Dict[str, Any]:
                 num_pages=num_pages,
                 num_chunks=total_chunks
             )
+            # Gentle pacing to respect Gemini API rate limits (15 RPM)
+            if end_idx < num_pages:
+                import time
+                time.sleep(2.5)
             gc.collect()
 
         pdf_doc.close()
