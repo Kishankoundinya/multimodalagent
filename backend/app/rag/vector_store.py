@@ -9,20 +9,37 @@ from backend.app.utils.config import settings
 from backend.app.utils.logging import logger
 from backend.app.rag.embeddings import get_embeddings
 
-_chroma_client: Optional[chromadb.PersistentClient] = None
+_chroma_client: Optional[Any] = None
 _vector_store: Optional[Chroma] = None
 
 COLLECTION_NAME = "financial_documents"
 
-def get_chroma_client() -> chromadb.PersistentClient:
+def get_chroma_client() -> Any:
     global _chroma_client
     if _chroma_client is None:
-        os.makedirs(settings.CHROMA_PERSIST_DIR, exist_ok=True)
-        _chroma_client = chromadb.PersistentClient(
-            path=settings.CHROMA_PERSIST_DIR,
-            settings=ChromaSettings(anonymized_telemetry=False)
-        )
-        logger.info(f"Initialized ChromaDB persistent client at {settings.CHROMA_PERSIST_DIR}")
+        if settings.CHROMA_SERVER_HOST and settings.CHROMA_SERVER_HOST.strip():
+            host = settings.CHROMA_SERVER_HOST.strip().replace("https://", "").replace("http://", "").rstrip("/")
+            port = settings.CHROMA_SERVER_PORT or (443 if settings.CHROMA_SERVER_SSL else 8000)
+            headers = {}
+            if settings.CHROMA_SERVER_AUTH_CREDENTIALS and settings.CHROMA_SERVER_AUTH_CREDENTIALS.strip():
+                headers["Authorization"] = f"Bearer {settings.CHROMA_SERVER_AUTH_CREDENTIALS.strip()}"
+            
+            logger.info(f"Connecting to separate remote ChromaDB server at {host}:{port} (ssl={settings.CHROMA_SERVER_SSL})")
+            _chroma_client = chromadb.HttpClient(
+                host=host,
+                port=port,
+                ssl=settings.CHROMA_SERVER_SSL,
+                headers=headers if headers else None,
+                settings=ChromaSettings(anonymized_telemetry=False)
+            )
+            logger.info(f"Connected to remote ChromaDB instance at {host}:{port}")
+        else:
+            os.makedirs(settings.CHROMA_PERSIST_DIR, exist_ok=True)
+            _chroma_client = chromadb.PersistentClient(
+                path=settings.CHROMA_PERSIST_DIR,
+                settings=ChromaSettings(anonymized_telemetry=False)
+            )
+            logger.info(f"Initialized local ChromaDB persistent client at {settings.CHROMA_PERSIST_DIR}")
     return _chroma_client
 
 def get_vector_store() -> Chroma:

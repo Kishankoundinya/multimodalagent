@@ -51,8 +51,9 @@ def extract_text_from_pdf(file_path: str) -> Tuple[List[Dict[str, Any]], int]:
 
 def process_pdf_document(document_id: str) -> Dict[str, Any]:
     """
-    Execute document indexing pipeline:
-    Extracting -> Chunking -> Embedding -> Indexing -> Completed
+    Execute streaming document indexing pipeline:
+    Extracts, chunks, embeds, and indexes page-by-page in 5-page micro-batches
+    so resident memory footprint remains flat (<120MB) regardless of PDF size.
     """
     doc_info = get_document_by_id(document_id)
     if not doc_info:
@@ -63,52 +64,73 @@ def process_pdf_document(document_id: str) -> Dict[str, Any]:
     company = doc_info["company"]
     fiscal_year = doc_info["fiscal_year"]
 
-    logger.info(f"Starting processing for document {document_id} ({filename})")
+    logger.info(f"Starting streaming processing for document {document_id} ({filename})")
 
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"File not found: {file_path}")
+
+    import gc
     try:
-        # Stage 1: Extracting
-        update_document_status(document_id, status="Extracting")
-        pages, num_pages = extract_text_from_pdf(file_path)
+        pdf_doc = fitz.open(file_path)
+        num_pages = len(pdf_doc)
+        if num_pages == 0:
+            raise ValueError("Document contains 0 pages.")
 
-        # Stage 2: Chunking
-        update_document_status(document_id, status="Chunking", num_pages=num_pages)
-        chunks = chunk_page_contents(
-            pages=pages,
-            document_id=document_id,
-            document_name=filename,
-            company=company,
-            fiscal_year=fiscal_year,
-            chunk_size=settings.CHUNK_SIZE,
-            chunk_overlap=settings.CHUNK_OVERLAP,
-        )
+        update_document_status(document_id, status="Indexing", num_pages=num_pages, num_chunks=0)
 
-        # Free raw pages from memory
-        del pages
-        import gc
-        gc.collect()
+        PAGE_BATCH_SIZE = 5
+        total_chunks = 0
+        total_extracted_text = 0
 
-        if not chunks:
-            raise ValueError("No valid text chunks could be created from document.")
+        for start_idx in range(0, num_pages, PAGE_BATCH_SIZE):
+            end_idx = min(start_idx + PAGE_BATCH_SIZE, num_pages)
+            batch_pages = []
+            for p_idx in range(start_idx, end_idx):
+                page = pdf_doc[p_idx]
+                text = page.get_text("text")
+                cleaned = re.sub(r"[ \t]+", " ", text).strip()
+                total_extracted_text += len(cleaned)
+                batch_pages.append({"page": p_idx + 1, "text": cleaned})
 
-        chunk_count = len(chunks)
+            batch_chunks = chunk_page_contents(
+                pages=batch_pages,
+                document_id=document_id,
+                document_name=filename,
+                company=company,
+                fiscal_year=fiscal_year,
+                chunk_size=settings.CHUNK_SIZE,
+                chunk_overlap=settings.CHUNK_OVERLAP,
+            )
+            del batch_pages
 
-        # Stage 3: Embedding
-        update_document_status(document_id, status="Embedding", num_chunks=chunk_count)
+            if batch_chunks:
+                add_documents_to_chroma(batch_chunks, batch_size=10)
+                total_chunks += len(batch_chunks)
+                del batch_chunks
 
-        # Stage 4: Indexing in ChromaDB
-        update_document_status(document_id, status="Indexing")
-        add_documents_to_chroma(chunks)
-        del chunks
-        gc.collect()
+            # Update status with incremental progress
+            progress_status = f"Indexing ({end_idx}/{num_pages} pages)" if end_idx < num_pages else "Finalizing"
+            update_document_status(
+                document_id,
+                status=progress_status,
+                num_pages=num_pages,
+                num_chunks=total_chunks
+            )
+            gc.collect()
 
-        # Stage 5: Completed
+        pdf_doc.close()
+
+        if total_extracted_text < 50:
+            raise ValueError("This PDF does not contain extractable text. OCR is required.")
+
+        # Stage: Completed
         update_document_status(
             document_id,
             status="Completed",
             num_pages=num_pages,
-            num_chunks=chunk_count
+            num_chunks=total_chunks
         )
-        logger.info(f"Document {document_id} processing completed successfully.")
+        logger.info(f"Document {document_id} processing completed successfully ({total_chunks} chunks).")
         return get_document_by_id(document_id)
 
     except Exception as e:

@@ -46,7 +46,7 @@ export default function App() {
   // Poll while any document is actively processing
   useEffect(() => {
     const isProcessing = Array.isArray(documents) && documents.some((d) =>
-      ['Uploading', 'Extracting', 'Chunking', 'Embedding', 'Indexing'].includes(d.processing_status)
+      d.processing_status && !['Completed', 'Failed'].includes(d.processing_status)
     );
 
     if (isProcessing) {

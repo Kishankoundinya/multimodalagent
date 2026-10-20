@@ -19,3 +19,12 @@ services:
         value: "1024"
       - key: MAX_REPORT_TOKENS
         value: "2048"
+      - key: CHROMA_SERVER_HOST
+        sync: false
+      - key: CHROMA_SERVER_PORT
+        value: "443"
+      - key: CHROMA_SERVER_SSL
+        value: "true"
+      - key: CHROMA_SERVER_AUTH_CREDENTIALS
+        sync: false
+
