@@ -150,6 +150,8 @@ class SettingsResponse(BaseModel):
     app_name: str
     llm_model: str
     gemini_api_key_configured: bool = False
+    chroma_db_api_key_configured: bool = False
+    chroma_mode: str = "Local Persistent ChromaDB"
     device: str
     temperature: float
     max_new_tokens: int
@@ -163,6 +165,8 @@ class SettingsResponse(BaseModel):
 class SettingsUpdateRequest(BaseModel):
     gemini_api_key: Optional[str] = None
     llm_model: Optional[str] = None
+    chroma_db_api_key: Optional[str] = None
+    chroma_server_host: Optional[str] = None
     temperature: Optional[float] = None
     max_new_tokens: Optional[int] = None
     chunk_size: Optional[int] = None

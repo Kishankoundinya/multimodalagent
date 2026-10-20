@@ -6,6 +6,8 @@ from backend.app.utils.config import settings
 from backend.app.llm.llm_provider import get_shared_llm
 from backend.app.utils.logging import logger
 
+from backend.app.rag.vector_store import get_chroma_mode, reset_chroma_client
+
 router = APIRouter(prefix="/api/settings", tags=["Settings"])
 
 def _persist_env_var(key: str, value: str):
@@ -40,10 +42,18 @@ def get_current_settings():
         or os.environ.get("GEMINI_API_KEY")
         or os.environ.get("GOOGLE_API_KEY")
     )
+    has_chroma_key = bool(
+        settings.CHROMA_DB_API_KEY
+        or settings.CHROMA_API_KEY
+        or os.environ.get("CHROMA_DB_API_KEY")
+        or os.environ.get("CHROMA_API_KEY")
+    )
     return SettingsResponse(
         app_name=settings.APP_NAME,
         llm_model=settings.LLM_MODEL,
         gemini_api_key_configured=has_key,
+        chroma_db_api_key_configured=has_chroma_key,
+        chroma_mode=get_chroma_mode(),
         device=settings.DEVICE,
         temperature=settings.TEMPERATURE,
         max_new_tokens=settings.MAX_NEW_TOKENS,
@@ -74,6 +84,22 @@ def update_settings(update: SettingsUpdateRequest):
         _persist_env_var("LLM_MODEL", cleaned_model)
         shared.update_credentials(model_name=cleaned_model)
         logger.info(f"Updated LLM_MODEL to '{cleaned_model}'.")
+
+    if update.chroma_db_api_key is not None and update.chroma_db_api_key.strip():
+        cleaned_key = update.chroma_db_api_key.strip()
+        settings.CHROMA_DB_API_KEY = cleaned_key
+        os.environ["CHROMA_DB_API_KEY"] = cleaned_key
+        _persist_env_var("CHROMA_DB_API_KEY", cleaned_key)
+        reset_chroma_client()
+        logger.info("Updated CHROMA_DB_API_KEY and reset Chroma client successfully.")
+
+    if update.chroma_server_host is not None:
+        cleaned_host = update.chroma_server_host.strip()
+        settings.CHROMA_SERVER_HOST = cleaned_host
+        os.environ["CHROMA_SERVER_HOST"] = cleaned_host
+        _persist_env_var("CHROMA_SERVER_HOST", cleaned_host)
+        reset_chroma_client()
+        logger.info(f"Updated CHROMA_SERVER_HOST to '{cleaned_host}'.")
 
     if update.temperature is not None:
         settings.TEMPERATURE = update.temperature

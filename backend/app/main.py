@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.app.utils.config import settings
 from backend.app.utils.logging import logger
 from backend.app.database.database import init_db, get_all_documents
-from backend.app.rag.vector_store import get_vector_store_count
+from backend.app.rag.vector_store import get_vector_store_count, get_chroma_mode
 from backend.app.models.schemas import HealthResponse
 
 # Routers
@@ -99,7 +99,8 @@ def health_check():
 
     try:
         chunk_count = get_vector_store_count()
-        chroma_status = f"connected ({chunk_count} chunks indexed)"
+        mode = get_chroma_mode()
+        chroma_status = f"connected [{mode}] ({chunk_count} chunks indexed)"
     except Exception as e:
         chroma_status = f"error: {e}"
 

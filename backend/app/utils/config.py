@@ -25,8 +25,11 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = str(BASE_DIR / "data" / "documents")
     REPORT_DIR: str = str(BASE_DIR / "data" / "reports")
 
-    # External / Remote ChromaDB Server (Optional)
-    # If CHROMA_SERVER_HOST is set, connects via HttpClient (e.g. cloud or separate Render service)
+    # Chroma Cloud / Remote ChromaDB Server
+    CHROMA_DB_API_KEY: str = ""
+    CHROMA_API_KEY: str = ""
+    CHROMA_TENANT: str = ""
+    CHROMA_DATABASE: str = ""
     CHROMA_SERVER_HOST: str = ""
     CHROMA_SERVER_PORT: int = 443
     CHROMA_SERVER_SSL: bool = True

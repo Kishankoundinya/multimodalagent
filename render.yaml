@@ -9,6 +9,12 @@ services:
     envVars:
       - key: GEMINI_API_KEY
         sync: false
+      - key: CHROMA_DB_API_KEY
+        sync: false
+      - key: CHROMA_TENANT
+        sync: false
+      - key: CHROMA_DATABASE
+        sync: false
       - key: LLM_MODEL
         value: gemini-flash-lite-latest
       - key: DEVICE

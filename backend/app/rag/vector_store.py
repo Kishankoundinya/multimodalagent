@@ -14,10 +14,47 @@ _vector_store: Optional[Chroma] = None
 
 COLLECTION_NAME = "financial_documents"
 
+def reset_chroma_client():
+    """Reset cached Chroma client and vector store instance (e.g. after updating API key or host)."""
+    global _chroma_client, _vector_store
+    _chroma_client = None
+    _vector_store = None
+
+def get_chroma_mode() -> str:
+    chroma_api_key = (
+        settings.CHROMA_DB_API_KEY
+        or settings.CHROMA_API_KEY
+        or os.getenv("CHROMA_DB_API_KEY", "")
+        or os.getenv("CHROMA_API_KEY", "")
+    ).strip()
+    if chroma_api_key:
+        return "Chroma Cloud"
+    elif settings.CHROMA_SERVER_HOST and settings.CHROMA_SERVER_HOST.strip():
+        return f"Remote ChromaDB ({settings.CHROMA_SERVER_HOST.strip()})"
+    return "Local Persistent ChromaDB"
+
 def get_chroma_client() -> Any:
     global _chroma_client
     if _chroma_client is None:
-        if settings.CHROMA_SERVER_HOST and settings.CHROMA_SERVER_HOST.strip():
+        chroma_api_key = (
+            settings.CHROMA_DB_API_KEY
+            or settings.CHROMA_API_KEY
+            or os.getenv("CHROMA_DB_API_KEY", "")
+            or os.getenv("CHROMA_API_KEY", "")
+        ).strip()
+        tenant = (settings.CHROMA_TENANT or os.getenv("CHROMA_TENANT", "")).strip() or None
+        database = (settings.CHROMA_DATABASE or os.getenv("CHROMA_DATABASE", "")).strip() or None
+
+        if chroma_api_key:
+            logger.info("Initializing Chroma Cloud client with provided API key...")
+            _chroma_client = chromadb.CloudClient(
+                api_key=chroma_api_key,
+                tenant=tenant,
+                database=database,
+                settings=ChromaSettings(anonymized_telemetry=False)
+            )
+            logger.info(f"Connected to Chroma Cloud (tenant={tenant or 'default'}, database={database or 'default'})")
+        elif settings.CHROMA_SERVER_HOST and settings.CHROMA_SERVER_HOST.strip():
             host = settings.CHROMA_SERVER_HOST.strip().replace("https://", "").replace("http://", "").rstrip("/")
             port = settings.CHROMA_SERVER_PORT or (443 if settings.CHROMA_SERVER_SSL else 8000)
             headers = {}

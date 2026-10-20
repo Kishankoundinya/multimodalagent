@@ -81,7 +81,9 @@ def test_langchain_lcel_prompt_and_parser():
     parsed = parser.invoke("Test LLM Answer")
     assert parsed == "Test LLM Answer"
 
-def test_company_resolution_and_statement_retrieval():
+def test_company_resolution_and_statement_retrieval(monkeypatch):
+    import backend.app.rag.retriever as retriever
+    monkeypatch.setattr(retriever, "get_all_indexed_companies", lambda: ["ACCCENTURE", "Amazon", "Acme Technologies"])
     from backend.app.rag.retriever import resolve_company_name
 
     # Test typo resolution (e.g. 2 C's vs 3 C's registered in Chroma: ACCCENTURE)
